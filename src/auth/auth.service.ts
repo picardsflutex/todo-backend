@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthDto, CreateUserDto } from 'src/dtos';
 import { PrismaService } from 'src/prisma.service';
 import * as bcrypt from 'bcrypt'
@@ -44,15 +44,13 @@ export class AuthService {
     return tokens;
   }
 
-  async refresh(userId: number, rt: string): Promise<Tokens>{
-    const user = await this.prisma.user.findUnique({ where: { id: userId, } });
+  async refresh(rt: string): Promise<Tokens>{
+    const { id } = this.jwtService.verify(rt,{secret: this.config.get<string>('RT_SECRET')})
+
+    const user = await this.prisma.user.findUnique({ where: { id, } });
     if (!user || !rt) throw new ForbiddenException('Access Denied');
 
-    const tokens = await this.getTokens(user.id, user.email, user.role)
-    const rtMatches = await bcrypt.compare(rt, tokens.refresh_token)
-    if (!rtMatches) throw new ForbiddenException("Access Denied")
-
-    return tokens;
+    return this.getTokens(user.id, user.email, user.role);
   }
 
   hashData(data: string) {
