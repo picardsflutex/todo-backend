@@ -1,4 +1,6 @@
 {
-  "singleQuote": true,
-  "trailingComma": "all"
+  "parser": "prettier",
+  "tabWidth": 2,
+  "useTabs": false,
+  "endOfLine": "auto"
 }
