@@ -40,7 +40,7 @@ model User {
   id            Int                  @id @default(autoincrement())
   email         String               @unique
   password_hash String
-  name          String?
+  name          String?              @unique
   role          Role                 @default(USER)
   Comment       Comment[]
   projects      ProjectParticipant[]

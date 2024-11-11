@@ -6,26 +6,25 @@ import { JwtPayload, Tokens } from 'src/types';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Role } from '@prisma/client';
+import { UsersService } from 'src/users/users.service';
 
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private userService: UsersService,
   ) {}
 
   async signup(dto: CreateUserDto): Promise<Tokens>{
-    const password_hash = await this.hashData(dto.password);
+    const email = await this.userService.getUserByField({email: dto.email});
+    const name = await this.userService.getUserByField({name: dto.username});
+    if(email || name) throw new ForbiddenException("Email or username already in use.")
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password_hash: password_hash,
-        name: dto.username
-      }
-    })
+    dto.password = await this.hashData(dto.password);
+
+    const newUser = await this.userService.createUser(dto);
 
     const tokens = await this.getTokens(newUser.id, newUser.email, newUser.role)
 
@@ -33,22 +32,20 @@ export class AuthService {
   }
 
   async signin(dto: AuthDto): Promise<Tokens>{
-    const user = await this.prisma.user.findUnique({ where: {email: dto.email} })
-    if (!user) throw new ForbiddenException("Access Denied")
+    const user = await this.userService.getUserByField({email: dto.email});
+    if (!user) throw new ForbiddenException("User not found.")
 
     const passwordMatches = await bcrypt.compare(dto.password, user.password_hash)
-    if (!passwordMatches) throw new ForbiddenException("Access Denied")
+    if (!passwordMatches) throw new ForbiddenException("Uncorrect password.")
 
     const tokens = await this.getTokens(user.id, user.email, user.role)
 
     return tokens;
   }
 
-  async refresh(rt: string): Promise<Tokens>{
-    const { id } = this.jwtService.verify(rt,{secret: this.config.get<string>('RT_SECRET')})
-
-    const user = await this.prisma.user.findUnique({ where: { id, } });
-    if (!user || !rt) throw new ForbiddenException('Access Denied');
+  async refresh(id: number): Promise<Tokens>{
+    const user = await this.userService.getUserByField({id});
+    if (!user || !id) throw new ForbiddenException('User not found.');
 
     return this.getTokens(user.id, user.email, user.role);
   }

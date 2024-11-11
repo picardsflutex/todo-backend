@@ -15,7 +15,6 @@ export class RtGuard extends AuthGuard('jwt-refresh') {
       throw new UnauthorizedException('Refresh token not found in cookies');
     }
 
-    // Добавляем refreshToken в headers для обработки стратегией
     request.headers['authorization'] = `Bearer ${refreshToken}`;
 
     return super.canActivate(context);

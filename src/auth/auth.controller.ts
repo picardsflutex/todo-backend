@@ -1,7 +1,7 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthDto, CreateUserDto } from 'src/dtos';
-import { GetCurrentUser, GetCurrentUserId, Public } from 'src/common/decorators';
+import { GetCurrentUserId, Public } from 'src/common/decorators';
 import { RtGuard } from 'src/common/guards';
 import { Response } from 'express';
 
@@ -12,8 +12,20 @@ export class AuthController {
   @Public()
   @Post('/signup')
   @HttpCode(HttpStatus.CREATED)
-  signup(@Body() dto: CreateUserDto) {
-    return this.authService.signup(dto);
+  async signup(
+    @Res({ passthrough: true }) res: Response,
+    @Body() dto: CreateUserDto
+) {
+    const tokens = await this.authService.signup(dto);
+
+    res.cookie('refresh_token', tokens.refresh_token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      path: '/auth/refresh',
+    });
+
+    return { access_token: tokens.access_token };
   }
 
   @Public()
@@ -22,15 +34,13 @@ export class AuthController {
   async signin(@Body() dto: AuthDto, @Res({ passthrough: true }) res: Response) {
     const tokens = await this.authService.signin(dto);
 
-    // Установка refresh_token в защищенные cookies
     res.cookie('refresh_token', tokens.refresh_token, {
       httpOnly: true,
       secure: true,
       sameSite: 'strict',
-      path: '/auth/refresh',  // Ограничение на URL, где cookie доступен
+      path: '/auth/refresh',
     });
 
-    // Возврат только access_token в теле ответа
     return { access_token: tokens.access_token };
   }
 
@@ -39,12 +49,11 @@ export class AuthController {
   @Post('/refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
-    @GetCurrentUser('refreshToken') refreshToken: string,
+    @GetCurrentUserId() id: number,
     @Res({ passthrough: true }) res: Response
   ) {
-    const tokens = await this.authService.refresh(refreshToken);
+    const tokens = await this.authService.refresh(id);
 
-    // Обновление refresh_token в cookies
     res.cookie('refresh_token', tokens.refresh_token, {
       httpOnly: true,
       secure: true,
@@ -52,7 +61,6 @@ export class AuthController {
       path: '/auth/refresh',
     });
 
-    // Возврат только access_token в теле ответа
     return { access_token: tokens.access_token };
   }
 }
