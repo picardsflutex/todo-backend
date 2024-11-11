@@ -26,6 +26,7 @@ enum Status {
   TODO
   INPROGRESS
   DONE
+  DELETED
 }
 
 enum ProjectRole {
