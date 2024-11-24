@@ -40,12 +40,23 @@ enum ProjectRole {
 model User {
   id            Int                  @id @default(autoincrement())
   email         String               @unique
-  password_hash String
-  name          String?              @unique
+  password_hash String?
+  name          String?
+  username      String?              @unique
   role          Role                 @default(USER)
+  Account       Account[]
   Comment       Comment[]
   projects      ProjectParticipant[]
   tasks         Task[]
+}
+
+model Account {
+  id                Int      @id @default(autoincrement())
+  userId            Int
+  user              User     @relation(fields: [userId], references: [id])
+  provider          String
+  providerAccountId String
+  createdAt         DateTime @default(now())
 }
 
 model ProjectParticipant {

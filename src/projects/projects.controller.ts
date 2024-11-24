@@ -20,8 +20,9 @@ export class ProjectsController {
   }
 
   @Post()
-  create(@Body() createProjectDto: CreateProjectDto) {
-    return this.projectsService.createProject(createProjectDto);
+  @UseGuards(AtGuard)
+  create(@Body() createProjectDto: CreateProjectDto, @GetCurrentUserId() userId: number) {
+    return this.projectsService.createProject(createProjectDto, userId);
   }
 
   @Patch(':id')

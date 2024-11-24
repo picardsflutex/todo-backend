@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthDto, CreateUserDto } from 'src/dtos';
 import { GetCurrentUserId, Public } from 'src/common/decorators';
@@ -45,6 +45,40 @@ export class AuthController {
   }
 
   @Public()
+  @Post('/oauth/:provider')
+  @HttpCode(HttpStatus.OK)
+  async oauthSignin(
+    @Param('provider') provider: string,
+    @Body() dto: { providerAccountId: string; email: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await this.authService.oauthSignin(provider, dto.providerAccountId, dto.email);
+
+    res.cookie('refresh_token', tokens.refresh_token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      path: '/auth/refresh',
+    });
+
+    return { access_token: tokens.access_token };
+  }
+
+  @UseGuards(RtGuard)
+  @Post('/signout')
+  @HttpCode(HttpStatus.OK)
+  async signout(
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+
+    return { message: 'Logged out successfully' };
+  }
+
   @UseGuards(RtGuard)
   @Post('/refresh')
   @HttpCode(HttpStatus.OK)
@@ -63,4 +97,5 @@ export class AuthController {
 
     return { access_token: tokens.access_token };
   }
+
 }

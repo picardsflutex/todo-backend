@@ -1,11 +1,9 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthDto, CreateUserDto } from 'src/dtos';
-import { PrismaService } from 'src/prisma.service';
 import * as bcrypt from 'bcrypt'
 import { JwtPayload, Tokens } from 'src/types';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { Role } from '@prisma/client';
 import { UsersService } from 'src/users/users.service';
 
 
@@ -17,56 +15,77 @@ export class AuthService {
     private userService: UsersService,
   ) {}
 
-  async signup(dto: CreateUserDto): Promise<Tokens>{
-    const email = await this.userService.getUserByField({email: dto.email});
-    const name = await this.userService.getUserByField({name: dto.username});
-    if(email || name) throw new ForbiddenException("Email or username already in use.")
+  async signup(dto: CreateUserDto): Promise<Tokens> {
+    const emailExists = await this.userService.getUserByField({ email: dto.email });
+
+    if (emailExists) throw new ForbiddenException('Email already in use.');
 
     dto.password = await this.hashData(dto.password);
-
     const newUser = await this.userService.createUser(dto);
 
-    const tokens = await this.getTokens(newUser.id, newUser.email, newUser.role)
+    await this.userService.linkAccount(newUser.id, 'credentials', dto.email);
 
+    const { password_hash, ...jwtPayload } = newUser;
+    const tokens = await this.getTokens(jwtPayload);
     return tokens;
   }
 
-  async signin(dto: AuthDto): Promise<Tokens>{
-    const user = await this.userService.getUserByField({email: dto.email});
-    if (!user) throw new ForbiddenException("User not found.")
+  async signin(dto: AuthDto): Promise<Tokens> {
+    const account = await this.userService.getAccountByProviderAndAccountId('credentials', dto.email);
+    if (!account) throw new ForbiddenException('User not found.');
 
-    const passwordMatches = await bcrypt.compare(dto.password, user.password_hash)
-    if (!passwordMatches) throw new ForbiddenException("Uncorrect password.")
+    const user = await this.userService.getUserByField({ id: account.userId });
+    const passwordMatches = await bcrypt.compare(dto.password, user.password_hash);
 
-    const tokens = await this.getTokens(user.id, user.email, user.role)
+    if (!passwordMatches) throw new ForbiddenException('Incorrect password.');
 
+    const { password_hash, ...jwtPayload } = user;
+    const tokens = await this.getTokens(jwtPayload);
     return tokens;
   }
+
+  async oauthSignin(provider: string, providerAccountId: string, email: string): Promise<Tokens> {
+    let user = await this.userService.getUserByField({ email });
+
+    if (!user) {
+      user = await this.userService.createUser({
+        email,
+        password: null,
+      });
+    }
+
+    const account = await this.userService.getAccountByProviderAndAccountId(provider, providerAccountId);
+
+    if (!account) {
+      await this.userService.linkAccount(user.id, provider, providerAccountId);
+    }
+
+    const { password_hash, ...jwtPayload } = user;
+    const tokens = await this.getTokens(jwtPayload);
+    return tokens;
+  }
+
 
   async refresh(id: number): Promise<Tokens>{
     const user = await this.userService.getUserByField({id});
     if (!user || !id) throw new ForbiddenException('User not found.');
-
-    return this.getTokens(user.id, user.email, user.role);
+    
+    const { password_hash, ...jwtPayload } = user;
+    return this.getTokens(jwtPayload);
   }
 
   hashData(data: string) {
     return bcrypt.hash(data, 10)
   }
 
-  async getTokens(userId: number, email: string, role: Role): Promise<Tokens> {
-    const jwtPayload: JwtPayload = {
-      id: userId,
-      email: email,
-      role: role
-    };
+  async getTokens(user: JwtPayload): Promise<Tokens> {
 
     const [at, rt] = await Promise.all([
-      this.jwtService.signAsync(jwtPayload, {
+      this.jwtService.signAsync(user, {
         secret: this.config.get<string>('AT_SECRET'),
         expiresIn: '30m',
       }),
-      this.jwtService.signAsync(jwtPayload, {
+      this.jwtService.signAsync(user, {
         secret: this.config.get<string>('RT_SECRET'),
         expiresIn: '7d',
       }),

@@ -21,9 +21,24 @@ export class ProjectsService {
     });
   }
 
-  async createProject(data: CreateProjectDto) {
-    return this.prisma.project.create({ data });
+  async createProject(data: CreateProjectDto, userId: number) {
+    return this.prisma.project.create({
+      data: {
+        ...data,
+        
+        ProjectParticipant: {
+          create: {
+            userId: userId,
+            project_role: 'AUTHOR',
+          },
+        },
+      },
+      include: {
+        ProjectParticipant: true,
+      },
+    });
   }
+
 
   async updateProject(id: number, data: UpdateProjectDto) {
     return this.prisma.project.update({
