@@ -25,7 +25,7 @@ export class AuthController {
       path: '/auth/refresh',
     });
 
-    return { access_token: tokens.access_token };
+    return tokens;
   }
 
   @Public()
@@ -41,7 +41,7 @@ export class AuthController {
       path: '/auth/refresh',
     });
 
-    return { access_token: tokens.access_token };
+    return tokens;
   }
 
   @Public()
@@ -54,29 +54,7 @@ export class AuthController {
   ) {
     const tokens = await this.authService.oauthSignin(provider, dto.providerAccountId, dto.email);
 
-    res.cookie('refresh_token', tokens.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      path: '/auth/refresh',
-    });
-
-    return { access_token: tokens.access_token };
-  }
-
-  @UseGuards(RtGuard)
-  @Post('/signout')
-  @HttpCode(HttpStatus.OK)
-  async signout(
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-    });
-
-    return { message: 'Logged out successfully' };
+    return tokens;
   }
 
   @UseGuards(RtGuard)
@@ -88,14 +66,7 @@ export class AuthController {
   ) {
     const tokens = await this.authService.refresh(id);
 
-    res.cookie('refresh_token', tokens.refresh_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      path: '/auth/refresh',
-    });
-
-    return { access_token: tokens.access_token };
+    return tokens;
   }
 
 }

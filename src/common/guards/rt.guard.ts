@@ -1,22 +1,21 @@
 import { AuthGuard } from '@nestjs/passport';
 import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class RtGuard extends AuthGuard('jwt-refresh') {
-  constructor() {
+  constructor(private reflector: Reflector) {
     super();
   }
 
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest();
-    const refreshToken = request.cookies['refresh_token'];
+    const isPublic = this.reflector.getAllAndOverride('isPublic', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
-    if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token not found in cookies');
-    }
-
-    request.headers['authorization'] = `Bearer ${refreshToken}`;
-
+    if (isPublic) return true;
+    
     return super.canActivate(context);
   }
 }

@@ -13,13 +13,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//ENUMs
+//*************----ENUMs----*************
 
 enum Role {
   ADMIN
   MANAGER
-  SEO
   USER
+}
+
+enum TeamRole {
+  SEO
+  PROJECT_LEAD
+  SPECIALIST
+}
+
+enum ProjectTaskRole {
+  AUTHOR
+  EXECUTOR
 }
 
 enum Status {
@@ -29,25 +39,32 @@ enum Status {
   DELETED
 }
 
-enum ProjectRole {
-  AUTHOR
-  PROJECT_LEAD
-  EXECUTOR
+enum ChatType {
+  PERSONAL
+  GROUP
 }
 
-//Models
+//*************----MODELs----*************
+
+//User
 
 model User {
-  id            Int                  @id @default(autoincrement())
-  email         String               @unique
-  password_hash String?
-  name          String?
-  username      String?              @unique
-  role          Role                 @default(USER)
-  Account       Account[]
-  Comment       Comment[]
-  projects      ProjectParticipant[]
-  tasks         Task[]
+  id              Int                  @id @default(autoincrement())
+  email           String               @unique
+  password_hash   String?
+  name            String?
+  username        String?              @unique
+  role            Role                 @default(USER)
+  Account         Account[]
+  Comment         Comment[]
+  projects        ProjectParticipant[]
+  tasks           TaskParticipant[]
+  Team            Team[]
+  TeamMember      TeamMember[]
+  ChatParticipant ChatParticipant[]
+  Message         Message[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 }
 
 model Account {
@@ -57,46 +74,121 @@ model Account {
   provider          String
   providerAccountId String
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
+//Team
+
+model TeamMember {
+  id     Int      @id @default(autoincrement())
+  team   Team     @relation(fields: [teamId], references: [id])
+  teamId Int
+  user   User     @relation(fields: [userId], references: [id])
+  userId Int
+  role   TeamRole
+}
+
+model Team {
+  id          Int          @id @default(autoincrement())
+  name        String
+  description String?
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdById Int
+  members     TeamMember[]
+  projects    Project[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+//Chat
+
+model ChatParticipant {
+  id     Int  @id @default(autoincrement())
+  chat   Chat @relation(fields: [chatId], references: [id])
+  chatId Int
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+}
+
+model Chat {
+  id           Int               @id @default(autoincrement())
+  name         String? // Название чата для группового чата, для личного можно оставить null
+  type         ChatType // Тип чата (личный или групповой)
+  createdAt    DateTime          @default(now())
+  participants ChatParticipant[] // Участники чата
+  messages     Message[] // Сообщения чата
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  content   String // Текст сообщения
+  sender    User     @relation(fields: [senderId], references: [id])
+  senderId  Int // Пользователь, который отправил сообщение
+  chat      Chat     @relation(fields: [chatId], references: [id])
+  chatId    Int // Чат, в котором было отправлено сообщение
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Project
+
 model ProjectParticipant {
-  id           Int         @id @default(autoincrement())
-  project      Project     @relation(fields: [projectId], references: [id])
+  id           Int             @id @default(autoincrement())
+  project      Project         @relation(fields: [projectId], references: [id])
   projectId    Int
-  user         User        @relation(fields: [userId], references: [id])
+  user         User            @relation(fields: [userId], references: [id])
   userId       Int
-  project_role ProjectRole
+  project_role ProjectTaskRole
 }
 
 model Project {
   id                 Int                  @id @default(autoincrement())
   title              String
+  subtitle           String
   description        String
-  createdAt          DateTime             @default(now())
   status             Status               @default(TODO)
   tasks              Task[]
   ProjectParticipant ProjectParticipant[]
+  team               Team?                @relation(fields: [teamId], references: [id])
+  teamId             Int?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  deadline           DateTime
+}
+
+// Task
+
+model TaskParticipant {
+  id        Int             @id @default(autoincrement())
+  task      Task            @relation(fields: [taskId], references: [id])
+  taskId    Int
+  user      User            @relation(fields: [userId], references: [id])
+  userId    Int
+  task_role ProjectTaskRole
 }
 
 model Task {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String
-  createdAt   DateTime  @default(now())
-  status      Status    @default(TODO)
-  projects    Project?  @relation(fields: [projectId], references: [id])
-  projectId   Int?
-  comments    Comment[]
-  user        User?     @relation(fields: [userId], references: [id])
-  userId      Int?
+  id               Int               @id @default(autoincrement())
+  title            String
+  subtitle         String
+  description      String
+  status           Status            @default(TODO)
+  project          Project?          @relation(fields: [projectId], references: [id])
+  projectId        Int?
+  comments         Comment[]
+  taskParticipants TaskParticipant[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  deadline         DateTime
 }
 
 model Comment {
   id          Int      @id @default(autoincrement())
   description String
-  createdAt   DateTime @default(now())
   task        Task?    @relation(fields: [taskId], references: [id])
   taskId      Int?
   author      User?    @relation(fields: [authorId], references: [id])
   authorId    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
